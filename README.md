@@ -21,19 +21,22 @@
 
 ## ✨ Key Features
 
-- 📝 **Rich Text Notes**: Effortlessly create, edit, and organize your daily thoughts with a clean, distraction-free interface.
-- ✅ **Smart Checklists**: Manage tasks and daily to-dos with interactive, easy-to-use checklists.
-- 📅 **Calendar & Reminders**: Keep track of important events and set personalized reminders directly from the calendar view.
-- 🔒 **Absolute Privacy**: Zero cloud synchronization, zero tracking. Your data is stored locally using optimized Key-Value storage.
-- ⚡ **Blazing Fast**: Engineered with Flutter for high performance, smooth 60fps animations, and low memory consumption.
-- 🎨 **Premium UI/UX**: Designed with modern aesthetic principles, featuring smooth micro-animations and intuitive navigation.
+- 📝 **Smooth Note Editing**: Faster, cleaner text and checklist editors with auto-save on back.
+- ✅ **Smart Checklists**: Manage tasks and daily to-dos with interactive checklist notes.
+- 📅 **Calendar & Reminders**: Add reminders from the editor and review them in a dedicated calendar view.
+- 🎨 **Keep-Inspired UI/UX**: Search-first home layout, quick actions, note filters, and calmer visual hierarchy.
+- 🔤 **Font System**: Choose between multiple app-wide font presets and adjust overall font scale.
+- 🗂️ **Archive & Trash Management**: Dedicated archive/trash flows with restore and permanent delete actions.
+- 🔒 **Stronger App Lock**: PIN is hashed instead of stored in plain text, with optional auto-lock on background.
+- ⚡ **Offline First**: Everything stays local on-device with no account requirement.
 
 ## 🛠️ Technology Stack
 
 - **Framework**: [Flutter](https://flutter.dev/) (Cross-platform UI toolkit)
 - **Language**: [Dart](https://dart.dev/)
 - **State Management**: `provider` (Scalable and predictable state management)
-- **Local Storage**: `shared_preferences` (Persistent local storage)
+- **Local Storage**: `shared_preferences` (persistent local storage)
+- **Security Utilities**: `crypto` (PIN hashing)
 - **Icons**: `cupertino_icons` & Material Icons
 - **Date Utilities**: `intl` & `table_calendar`
 
@@ -42,8 +45,9 @@
 ```text
 lib/
 ├── main.dart            # Application entry point
-├── screens/             # UI Views (Home, Note Editor, Calendar, etc.)
+├── screens/             # UI views (home, editors, archive/trash, calendar, etc.)
 ├── widgets/             # Reusable custom UI components
+├── theme/               # App theme + font configuration
 ├── models/              # Data structures and classes
 ├── providers/           # State management logic
 └── utils/               # Helper functions and constants
