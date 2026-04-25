@@ -22,6 +22,7 @@ class _TextEditorScreenState extends State<TextEditorScreen> {
   late final TextEditingController _titleController;
   late final TextEditingController _contentController;
   late final TextEditingController _tagController;
+  late final ScrollController _scrollController;
   final VoiceService _voiceService = VoiceService();
   Note? _note;
   int _backgroundColorValue = NoteStyle.defaultBackgroundColor;
@@ -37,6 +38,7 @@ class _TextEditorScreenState extends State<TextEditorScreen> {
     _titleController = TextEditingController();
     _contentController = TextEditingController();
     _tagController = TextEditingController();
+    _scrollController = ScrollController();
     _initVoice();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -68,7 +70,18 @@ class _TextEditorScreenState extends State<TextEditorScreen> {
     _titleController.dispose();
     _contentController.dispose();
     _tagController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToCursor() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   Future<void> _persistNote({bool popAfterSave = false}) async {
@@ -502,32 +515,34 @@ class _TextEditorScreenState extends State<TextEditorScreen> {
                 controller: _titleController,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
-                  hintText: 'Title',
+                  hintText: 'Note title...',
                   filled: false,
                   border: InputBorder.none,
-                  hintStyle: TextStyle(color: foreground.withOpacity(0.50)),
+                  hintStyle: TextStyle(color: foreground.withOpacity(0.35)),
                 ),
                 style: theme.textTheme.headlineSmall?.copyWith(
                   color: foreground,
                   fontWeight: FontWeight.w800,
                 ),
                 maxLines: null,
+                onChanged: (_) => _scrollToCursor(),
               ),
               Expanded(
                 child: TextField(
                   controller: _contentController,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
-                    hintText: 'Write your note…',
+                    hintText: 'Start typing your thoughts here...',
                     filled: false,
                     border: InputBorder.none,
-                    hintStyle: TextStyle(color: foreground.withOpacity(0.50)),
+                    hintStyle: TextStyle(color: foreground.withOpacity(0.35)),
                   ),
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: foreground.withOpacity(0.92),
                     height: 1.5,
                   ),
                   maxLines: null,
+                  onChanged: (_) => _scrollToCursor(),
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,
                 ),
