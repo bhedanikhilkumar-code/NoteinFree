@@ -22,8 +22,8 @@ class _TextEditorScreenState extends State<TextEditorScreen> {
   late final TextEditingController _titleController;
   late final TextEditingController _contentController;
   late final TextEditingController _tagController;
-  late final ScrollController _scrollController;
   final VoiceService _voiceService = VoiceService();
+  final FocusNode _contentFocusNode = FocusNode();
   Note? _note;
   int _backgroundColorValue = NoteStyle.defaultBackgroundColor;
   int _labelValue = 0;
@@ -31,6 +31,7 @@ class _TextEditorScreenState extends State<TextEditorScreen> {
   bool _isListening = false;
   DateTime? _reminderAt;
   List<String> _tags = <String>[];
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -38,7 +39,6 @@ class _TextEditorScreenState extends State<TextEditorScreen> {
     _titleController = TextEditingController();
     _contentController = TextEditingController();
     _tagController = TextEditingController();
-    _scrollController = ScrollController();
     _initVoice();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -71,16 +71,99 @@ class _TextEditorScreenState extends State<TextEditorScreen> {
     _contentController.dispose();
     _tagController.dispose();
     _scrollController.dispose();
+    _contentFocusNode.dispose();
     super.dispose();
   }
 
-  void _scrollToCursor() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
+  Future<void> _initVoice() async {
+    await _voiceService.init();
+  }
+
+  void _toggleVoiceInput() {
+    if (_isListening) {
+      _voiceService.stopListening();
+      setState(() {
+        _isListening = false;
+      });
+    } else {
+      _voiceService.startListening(
+        onResult: (String text) {
+          final String current = _contentController.text;
+          final String newText = current.isEmpty ? text : '$current $text';
+          _contentController.text = newText;
+          _contentController.selection = TextSelection.collapsed(offset: newText.length);
+          setState(() {
+            _isListening = false;
+          });
+        },
+        onPartial: (String text) {},
       );
+      setState(() {
+        _isListening = true;
+      });
+    }
+  }
+
+  Future<void> _exportNote() async {
+    if (_note == null) {
+      await _persistNote();
+      return;
+    }
+
+    final String? action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf),
+                title: const Text('Export as PDF'),
+                onTap: () => Navigator.pop(context, 'pdf'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.text_snippet),
+                title: const Text('Export as TXT'),
+                onTap: () => Navigator.pop(context, 'txt'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.share),
+                title: const Text('Share note'),
+                onTap: () => Navigator.pop(context, 'share'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (action == null || _note == null) return;
+
+    try {
+      if (action == 'pdf') {
+        final String path = await ExportService.exportNoteAsPdf(_note!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Saved: $path')),
+          );
+        }
+      } else if (action == 'txt') {
+        final String path = await ExportService.exportNoteAsTxt(_note!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Saved: $path')),
+          );
+        }
+      } else if (action == 'share') {
+        await ExportService.shareNote(_note!);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
     }
   }
 
@@ -269,95 +352,6 @@ class _TextEditorScreenState extends State<TextEditorScreen> {
     });
   }
 
-  Future<void> _initVoice() async {
-    await _voiceService.init();
-  }
-
-  void _toggleVoiceInput() {
-    if (_isListening) {
-      _voiceService.stopListening();
-      setState(() {
-        _isListening = false;
-      });
-    } else {
-      _voiceService.startListening(
-        onResult: (String text) {
-          final String current = _contentController.text;
-          final String newText = current.isEmpty ? text : '$current $text';
-          _contentController.text = newText;
-          _contentController.selection = TextSelection.collapsed(offset: newText.length);
-          setState(() {
-            _isListening = false;
-          });
-        },
-        onPartial: (String text) {
-          // Partial results can be shown live if needed
-        },
-      );
-      setState(() {
-        _isListening = true;
-      });
-    }
-  }
-
-  Future<void> _exportNote() async {
-    if (_note == null) {
-      await _persistNote();
-      return;
-    }
-
-    final String? action = await showModalBottomSheet<String>(
-      context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.picture_as_pdf),
-                title: const Text('Export as PDF'),
-                onTap: () => Navigator.pop(context, 'pdf'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.text_snippet),
-                title: const Text('Export as TXT'),
-                onTap: () => Navigator.pop(context, 'txt'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.share),
-                title: const Text('Share note'),
-                onTap: () => Navigator.pop(context, 'share'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (action == null || _note == null) return;
-
-
-    try {
-      if (action == 'pdf') {
-        final String path = await ExportService.exportNoteAsPdf(_note!);
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Saved: $path')),
-        );
-      } else if (action == 'txt') {
-        final String path = await ExportService.exportNoteAsTxt(_note!);
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Saved: $path')),
-        );
-      } else if (action == 'share') {
-        await ExportService.shareNote(_note!);
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $e')),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -398,70 +392,68 @@ class _TextEditorScreenState extends State<TextEditorScreen> {
         ),
         bottomNavigationBar: SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(
-                color: foreground.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                children: <Widget>[
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: foreground.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: <Widget>[
+                IconButton(
+                  tooltip: 'Change note color',
+                  onPressed: _showColorPicker,
+                  icon: const Icon(Icons.palette_outlined),
+                  color: foreground,
+                ),
+                IconButton(
+                  tooltip: _reminderAt == null ? 'Add reminder' : 'Edit reminder',
+                  onPressed: _pickReminder,
+                  icon: const Icon(Icons.alarm_rounded),
+                  color: foreground,
+                ),
+                if (_reminderAt != null)
                   IconButton(
-                    tooltip: 'Change note color',
-                    onPressed: _showColorPicker,
-                    icon: const Icon(Icons.palette_outlined),
+                    tooltip: 'Clear reminder',
+                    onPressed: () {
+                      setState(() {
+                        _reminderAt = null;
+                      });
+                    },
+                    icon: const Icon(Icons.alarm_off_rounded),
                     color: foreground,
                   ),
-                  IconButton(
-                    tooltip: _reminderAt == null ? 'Add reminder' : 'Edit reminder',
-                    onPressed: _pickReminder,
-                    icon: const Icon(Icons.alarm_rounded),
-                    color: foreground,
+                IconButton(
+                  tooltip: 'Voice input',
+                  onPressed: _toggleVoiceInput,
+                  icon: Icon(
+                    _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
+                    color: _isListening ? Colors.red : foreground,
                   ),
-                  if (_reminderAt != null)
-                    IconButton(
-                      tooltip: 'Clear reminder',
-                      onPressed: () {
-                        setState(() {
-                          _reminderAt = null;
-                        });
-                      },
-                      icon: const Icon(Icons.alarm_off_rounded),
-                      color: foreground,
-                    ),
-                  IconButton(
-                    tooltip: 'Voice input',
-                    onPressed: _toggleVoiceInput,
-                    icon: Icon(
-                      _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
-                      color: _isListening ? Colors.red : foreground,
-                    ),
+                ),
+                IconButton(
+                  tooltip: 'Export / Share',
+                  onPressed: _exportNote,
+                  icon: const Icon(Icons.ios_share),
+                  color: foreground,
+                ),
+                const Spacer(),
+                Text(
+                  _note == null
+                      ? 'Draft'
+                      : 'Edited ${DateFormat('dd MMM · hh:mm a').format(_note!.updatedAt)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: foreground.withOpacity(0.72),
                   ),
-                  IconButton(
-                    tooltip: 'Export / Share',
-                    onPressed: _exportNote,
-                    icon: const Icon(Icons.ios_share),
-                    color: foreground,
-                  ),
-                  const Spacer(),
-                  Text(
-                    _note == null
-                        ? 'Draft'
-                        : 'Edited ${DateFormat('dd MMM · hh:mm a').format(_note!.updatedAt)}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: foreground.withOpacity(0.72),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+              ],
             ),
           ),
         ),
-        body: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+        body: SingleChildScrollView(
+          controller: _scrollController,
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
@@ -525,27 +517,24 @@ class _TextEditorScreenState extends State<TextEditorScreen> {
                   fontWeight: FontWeight.w800,
                 ),
                 maxLines: null,
-                onChanged: (_) => _scrollToCursor(),
               ),
-              Expanded(
-                child: TextField(
-                  controller: _contentController,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    hintText: 'Start typing your thoughts here...',
-                    filled: false,
-                    border: InputBorder.none,
-                    hintStyle: TextStyle(color: foreground.withOpacity(0.35)),
-                  ),
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: foreground.withOpacity(0.92),
-                    height: 1.5,
-                  ),
-                  maxLines: null,
-                  onChanged: (_) => _scrollToCursor(),
-                  expands: true,
-                  textAlignVertical: TextAlignVertical.top,
+              const SizedBox(height: 16),
+              TextField(
+                controller: _contentController,
+                focusNode: _contentFocusNode,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  hintText: 'Start typing your thoughts here...',
+                  filled: false,
+                  border: InputBorder.none,
+                  hintStyle: TextStyle(color: foreground.withOpacity(0.35)),
                 ),
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: foreground.withOpacity(0.92),
+                  height: 1.6,
+                ),
+                maxLines: null,
+                keyboardType: TextInputType.multiline,
               ),
             ],
           ),
