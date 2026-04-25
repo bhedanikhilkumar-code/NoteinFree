@@ -407,6 +407,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             },
           ),
         ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _QuickActionCard(
+            icon: Icons.auto_awesome,
+            label: 'Templates',
+            onTap: () {
+              Navigator.push(
+                context,
+                AnimatedPageRoute<void>(page: const TemplatesScreen()),
+              );
+            },
+          ),
+        ),
       ],
     );
   }
