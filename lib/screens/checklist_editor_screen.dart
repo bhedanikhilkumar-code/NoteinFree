@@ -6,6 +6,7 @@ import '../models/checklist_item.dart';
 import '../models/note.dart';
 import '../providers/note_provider.dart';
 import '../utils/note_style.dart';
+import '../widgets/note_metadata_toolbar.dart';
 
 class ChecklistEditorScreen extends StatefulWidget {
   final String? noteId;
@@ -19,17 +20,21 @@ class ChecklistEditorScreen extends StatefulWidget {
 class _ChecklistEditorScreenState extends State<ChecklistEditorScreen> {
   late final TextEditingController _titleController;
   late final TextEditingController _newItemController;
+  late final TextEditingController _tagController;
   Note? _note;
-  int _colorValue = NoteStyle.palette.first;
+  int _backgroundColorValue = NoteStyle.defaultBackgroundColor;
+  int _labelValue = 0;
   bool _pinned = false;
   DateTime? _reminderAt;
   List<ChecklistItem> _items = <ChecklistItem>[];
+  List<String> _tags = <String>[];
 
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController();
     _newItemController = TextEditingController();
+    _tagController = TextEditingController();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.noteId == null) {
@@ -45,10 +50,12 @@ class _ChecklistEditorScreenState extends State<ChecklistEditorScreen> {
       setState(() {
         _note = note;
         _titleController.text = note.title;
-        _colorValue = note.colorValue;
+        _backgroundColorValue = note.backgroundColorValue;
+        _labelValue = note.labelValue;
         _pinned = note.pinned;
         _reminderAt = note.reminderAt;
         _items = List<ChecklistItem>.from(note.checklistItems);
+        _tags = note.allTags;
       });
     });
   }
@@ -57,11 +64,13 @@ class _ChecklistEditorScreenState extends State<ChecklistEditorScreen> {
   void dispose() {
     _titleController.dispose();
     _newItemController.dispose();
+    _tagController.dispose();
     super.dispose();
   }
 
   Future<void> _persistNote({bool popAfterSave = false}) async {
     final NoteProvider noteProvider = Provider.of<NoteProvider>(context, listen: false);
+    _commitPendingTags();
     final String title = _titleController.text.trim();
     final List<ChecklistItem> cleanItems = _items
         .where((ChecklistItem item) => item.text.trim().isNotEmpty)
@@ -80,27 +89,34 @@ class _ChecklistEditorScreenState extends State<ChecklistEditorScreen> {
       return;
     }
 
+    final List<String> tags = List<String>.from(_tags);
     if (_note == null) {
       final Note newNote = Note(
         id: noteProvider.generateId(),
         title: title,
         type: NoteType.checklist,
-        colorValue: _colorValue,
+        backgroundColorValue: _backgroundColorValue,
+        labelValue: _labelValue,
         pinned: _pinned,
         reminderAt: _reminderAt,
         checklistItems: cleanItems,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
+        tag: tags.isEmpty ? '' : tags.first,
+        tags: tags,
       );
       await noteProvider.addNote(newNote);
       _note = newNote;
     } else {
       _note!
         ..title = title
-        ..colorValue = _colorValue
+        ..backgroundColorValue = _backgroundColorValue
+        ..labelValue = _labelValue
         ..pinned = _pinned
         ..reminderAt = _reminderAt
-        ..checklistItems = cleanItems;
+        ..checklistItems = cleanItems
+        ..tag = tags.isEmpty ? '' : tags.first
+        ..tags = tags;
       await noteProvider.updateNote(_note!);
     }
 
@@ -167,11 +183,11 @@ class _ChecklistEditorScreenState extends State<ChecklistEditorScreen> {
               spacing: 12,
               runSpacing: 12,
               children: NoteStyle.palette.map((int colorValue) {
-                final bool selected = _colorValue == colorValue;
+                final bool selected = _backgroundColorValue == colorValue;
                 return GestureDetector(
                   onTap: () {
                     setState(() {
-                      _colorValue = colorValue;
+                      _backgroundColorValue = colorValue;
                     });
                     Navigator.pop(context);
                   },
@@ -197,10 +213,69 @@ class _ChecklistEditorScreenState extends State<ChecklistEditorScreen> {
     );
   }
 
+  void _onTagChanged(String value) {
+    if (!value.contains(',')) {
+      return;
+    }
+
+    final List<String> parts = value.split(',');
+    for (int i = 0; i < parts.length - 1; i++) {
+      _addTag(parts[i]);
+    }
+
+    final String remainder = parts.last.trimLeft();
+    _tagController.value = TextEditingValue(
+      text: remainder,
+      selection: TextSelection.collapsed(offset: remainder.length),
+    );
+  }
+
+  void _commitPendingTags() {
+    _addTag(_tagController.text);
+  }
+
+  void _addTag([String? rawValue, bool clearField = true]) {
+    final String source = rawValue ?? _tagController.text;
+    final List<String> incomingTags = source
+        .split(RegExp(r'[\n,]'))
+        .map((String value) => value.trim())
+        .where((String value) => value.isNotEmpty)
+        .toList();
+
+    if (incomingTags.isEmpty) {
+      if (clearField) {
+        _tagController.clear();
+      }
+      return;
+    }
+
+    setState(() {
+      for (final String tag in incomingTags) {
+        final bool exists = _tags.any(
+          (String existing) => existing.toLowerCase() == tag.toLowerCase(),
+        );
+        if (!exists) {
+          _tags.add(tag);
+        }
+      }
+      _tags.sort((String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    });
+
+    if (clearField) {
+      _tagController.clear();
+    }
+  }
+
+  void _removeTag(String tag) {
+    setState(() {
+      _tags.removeWhere((String existing) => existing.toLowerCase() == tag.toLowerCase());
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final Color background = Color(_colorValue);
+    final Color background = Color(_backgroundColorValue);
     final Color foreground = NoteStyle.foregroundFor(background);
 
     return PopScope(
@@ -312,6 +387,27 @@ class _ChecklistEditorScreenState extends State<ChecklistEditorScreen> {
                     ],
                   ),
                 ),
+              NoteMetadataToolbar(
+                foreground: foreground,
+                selectedColorValue: _backgroundColorValue,
+                selectedLabelValue: _labelValue,
+                onColorChanged: (int colorValue) {
+                  setState(() {
+                    _backgroundColorValue = colorValue;
+                  });
+                },
+                onLabelChanged: (int labelValue) {
+                  setState(() {
+                    _labelValue = labelValue;
+                  });
+                },
+                tagController: _tagController,
+                onTagChanged: _onTagChanged,
+                onAddTag: _commitPendingTags,
+                tags: _tags,
+                onRemoveTag: _removeTag,
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _titleController,
                 textCapitalization: TextCapitalization.sentences,
@@ -388,9 +484,7 @@ class _ChecklistEditorScreenState extends State<ChecklistEditorScreen> {
                                 item.text,
                                 style: theme.textTheme.bodyLarge?.copyWith(
                                   color: foreground,
-                                  decoration: item.isCompleted
-                                      ? TextDecoration.lineThrough
-                                      : null,
+                                  decoration: item.isCompleted ? TextDecoration.lineThrough : null,
                                 ),
                               ),
                               secondary: IconButton(

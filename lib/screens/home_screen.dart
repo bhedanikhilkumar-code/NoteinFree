@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../models/note.dart';
 import '../providers/note_provider.dart';
 import '../providers/settings_provider.dart';
+import '../utils/custom_route_transitions.dart';
+import '../utils/staggered_animation.dart';
 import '../widgets/note_card.dart';
 import 'calendar_screen.dart';
 import 'checklist_editor_screen.dart';
@@ -21,52 +23,86 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   HomeNoteFilter _activeFilter = HomeNoteFilter.all;
+  String _activeTag = '';
+  late final AnimationController _fabPulseController;
+  late final AnimationController _fabTapController;
+
+  @override
+  void initState() {
+    super.initState();
+    _fabPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+    _fabTapController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    );
+  }
+
+  @override
+  void dispose() {
+    _fabPulseController.dispose();
+    _fabTapController.dispose();
+    super.dispose();
+  }
+
+  Future<T?> _showAnimatedSheet<T>(Widget child) {
+    return showModalBottomSheet<T>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        return _AnimatedSheetShell(child: child);
+      },
+    );
+  }
+
+  void _handleFabPress() {
+    _fabTapController.forward(from: 0);
+    Future<void>.delayed(const Duration(milliseconds: 70), () {
+      if (mounted) {
+        _showNewNoteOptions(context);
+      }
+    });
+  }
+
+  void _pushPage(Widget page) {
+    Navigator.push(context, AnimatedPageRoute<void>(page: page));
+  }
 
   void _showNewNoteOptions(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.notes_rounded)),
-                  title: const Text('Text note'),
-                  subtitle: const Text('Clean writing flow for quick thoughts'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute<TextEditorScreen>(
-                        builder: (_) => const TextEditorScreen(),
-                      ),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.checklist_rounded)),
-                  title: const Text('Checklist'),
-                  subtitle: const Text('For groceries, tasks, and planning'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute<ChecklistEditorScreen>(
-                        builder: (_) => const ChecklistEditorScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
+    _showAnimatedSheet<void>(
+      SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.notes_rounded)),
+                title: const Text('Text note'),
+                subtitle: const Text('Clean writing flow for quick thoughts'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pushPage(const TextEditorScreen());
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.checklist_rounded)),
+                title: const Text('Checklist'),
+                subtitle: const Text('For groceries, tasks, and planning'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pushPage(const ChecklistEditorScreen());
+                },
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -77,47 +113,44 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              ListTile(
-                leading: Icon(note.pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded),
-                title: Text(note.pinned ? 'Unpin note' : 'Pin note'),
-                onTap: () async {
-                  await noteProvider.togglePin(noteId);
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                  }
-                },
-              ),
-              ListTile(
-                leading: Icon(note.archived ? Icons.unarchive_outlined : Icons.archive_outlined),
-                title: Text(note.archived ? 'Move back to notes' : 'Archive note'),
-                onTap: () async {
-                  await noteProvider.toggleArchive(noteId);
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete_outline_rounded),
-                title: const Text('Move to trash'),
-                onTap: () async {
-                  await noteProvider.moveToTrash(noteId);
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-      },
+    _showAnimatedSheet<void>(
+      SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ListTile(
+              leading: Icon(note.pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded),
+              title: Text(note.pinned ? 'Unpin note' : 'Pin note'),
+              onTap: () async {
+                await noteProvider.togglePin(noteId);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+              },
+            ),
+            ListTile(
+              leading: Icon(note.archived ? Icons.unarchive_outlined : Icons.archive_outlined),
+              title: Text(note.archived ? 'Move back to notes' : 'Archive note'),
+              onTap: () async {
+                await noteProvider.toggleArchive(noteId);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded),
+              title: const Text('Move to trash'),
+              onTap: () async {
+                await noteProvider.moveToTrash(noteId);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -126,10 +159,28 @@ class _HomeScreenState extends State<HomeScreen> {
     final ThemeData theme = Theme.of(context);
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showNewNoteOptions(context),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New note'),
+      floatingActionButton: AnimatedBuilder(
+        animation: Listenable.merge(<Listenable>[_fabPulseController, _fabTapController]),
+        child: FloatingActionButton.extended(
+          heroTag: 'home-new-note',
+          onPressed: _handleFabPress,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('New note'),
+        ),
+        builder: (BuildContext context, Widget? child) {
+          final Animation<double> tapAnimation = TweenSequence<double>(
+            <TweenSequenceItem<double>>[
+              TweenSequenceItem<double>(tween: Tween<double>(begin: 1, end: 0.96), weight: 30),
+              TweenSequenceItem<double>(tween: Tween<double>(begin: 0.96, end: 1.05), weight: 35),
+              TweenSequenceItem<double>(tween: Tween<double>(begin: 1.05, end: 1), weight: 35),
+            ],
+          ).animate(CurvedAnimation(parent: _fabTapController, curve: Curves.easeOutCubic));
+          final double idleScale = 0.985 + (_fabPulseController.value * 0.03);
+          return Transform.scale(
+            scale: idleScale * tapAnimation.value,
+            child: child,
+          );
+        },
       ),
       body: SafeArea(
         child: Consumer2<NoteProvider, SettingsProvider>(
@@ -143,7 +194,22 @@ class _HomeScreenState extends State<HomeScreen> {
               noteProvider.allNotes,
               settings.sortOrder,
             );
-            final List<Note> filteredNotes = _filteredNotes(baseNotes);
+            final List<String> allTags = noteProvider.getAllTags();
+            if (_activeTag.isNotEmpty && !allTags.contains(_activeTag)) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  setState(() {
+                    _activeTag = '';
+                  });
+                }
+              });
+            }
+
+            final List<Note> visibleAllNotes = _applyTagFilter(baseNotes);
+            final List<Note> filteredNotes = _applyTagFilter(_filteredNotes(baseNotes));
+            final String noteCountLabel = _activeTag.isEmpty
+                ? '${baseNotes.length} notes'
+                : '${visibleAllNotes.length} of ${baseNotes.length} notes';
 
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
@@ -159,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     Text(
-                      '${baseNotes.length} notes',
+                      noteCountLabel,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurface.withOpacity(0.65),
                       ),
@@ -194,16 +260,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   }).toList(),
                 ),
+                if (allTags.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 12),
+                  _buildTagFilterRow(theme, allTags),
+                ],
                 const SizedBox(height: 18),
                 Row(
                   children: <Widget>[
-                    Text(
-                      _sectionTitle(),
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: Text(
+                        _sectionTitle(),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                    const Spacer(),
                     Text(
                       settings.sortLabel(settings.sortOrder),
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -216,7 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (baseNotes.isEmpty)
                   _buildEmptyState(theme)
                 else if (_activeFilter == HomeNoteFilter.all)
-                  _buildAllSections(theme, baseNotes)
+                  _buildAllSections(theme, visibleAllNotes)
                 else if (filteredNotes.isEmpty)
                   _buildFilteredEmptyState(theme)
                 else
@@ -231,25 +302,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildSearchBar(BuildContext context, ThemeData theme) {
     return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute<SearchScreen>(
-            builder: (_) => const SearchScreen(),
-          ),
-        );
-      },
+      onTap: () => _pushPage(const SearchScreen()),
       borderRadius: BorderRadius.circular(22),
       child: Ink(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
-          color: theme.brightness == Brightness.dark
-              ? Colors.white.withOpacity(0.05)
-              : Colors.white,
+          color: theme.brightness == Brightness.dark ? Colors.white.withOpacity(0.05) : Colors.white,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: theme.colorScheme.outline.withOpacity(0.10),
-          ),
+          border: Border.all(color: theme.colorScheme.outline.withOpacity(0.10)),
         ),
         child: Row(
           children: <Widget>[
@@ -277,12 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: _QuickActionCard(
             icon: Icons.calendar_month_rounded,
             label: 'Calendar',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute<CalendarScreen>(
-                builder: (_) => const CalendarScreen(),
-              ),
-            ),
+            onTap: () => _pushPage(const CalendarScreen()),
           ),
         ),
         const SizedBox(width: 12),
@@ -290,12 +345,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: _QuickActionCard(
             icon: Icons.archive_outlined,
             label: 'Archive',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute<NoteCollectionScreen>(
-                builder: (_) => const NoteCollectionScreen(type: NoteCollectionType.archived),
-              ),
-            ),
+            onTap: () => _pushPage(const NoteCollectionScreen(type: NoteCollectionType.archived)),
           ),
         ),
         const SizedBox(width: 12),
@@ -303,12 +353,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: _QuickActionCard(
             icon: Icons.delete_outline_rounded,
             label: 'Trash',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute<NoteCollectionScreen>(
-                builder: (_) => const NoteCollectionScreen(type: NoteCollectionType.trash),
-              ),
-            ),
+            onTap: () => _pushPage(const NoteCollectionScreen(type: NoteCollectionType.trash)),
           ),
         ),
         const SizedBox(width: 12),
@@ -316,19 +361,55 @@ class _HomeScreenState extends State<HomeScreen> {
           child: _QuickActionCard(
             icon: Icons.settings_outlined,
             label: 'Settings',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute<SettingsScreen>(
-                builder: (_) => const SettingsScreen(),
-              ),
-            ),
+            onTap: () => _pushPage(const SettingsScreen()),
           ),
         ),
       ],
     );
   }
 
+  Widget _buildTagFilterRow(ThemeData theme, List<String> tags) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: <Widget>[
+        ChoiceChip(
+          selected: _activeTag.isEmpty,
+          label: const Text('All tags'),
+          onSelected: (_) {
+            setState(() {
+              _activeTag = '';
+            });
+          },
+        ),
+        ...tags.map((String tag) {
+          return ChoiceChip(
+            selected: _activeTag == tag,
+            avatar: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.9),
+                shape: BoxShape.circle,
+              ),
+            ),
+            label: Text('#$tag'),
+            onSelected: (_) {
+              setState(() {
+                _activeTag = _activeTag == tag ? '' : tag;
+              });
+            },
+          );
+        }),
+      ],
+    );
+  }
+
   Widget _buildAllSections(ThemeData theme, List<Note> notes) {
+    if (notes.isEmpty) {
+      return _buildFilteredEmptyState(theme);
+    }
+
     final List<Note> pinnedNotes = notes.where((Note note) => note.pinned).toList();
     final List<Note> regularNotes = notes.where((Note note) => !note.pinned).toList();
 
@@ -363,16 +444,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ? 3
             : 2;
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+    return StaggeredGridAnimation(
       itemCount: notes.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columns,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        mainAxisExtent: 220,
-      ),
+      crossAxisCount: columns,
+      mainAxisExtent: 252,
       itemBuilder: (BuildContext context, int index) {
         final Note note = notes[index];
         return NoteCard(
@@ -406,7 +481,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 20),
             FilledButton.icon(
-              onPressed: () => _showNewNoteOptions(context),
+              onPressed: _handleFabPress,
               icon: const Icon(Icons.add_rounded),
               label: const Text('Create first note'),
             ),
@@ -425,7 +500,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const Icon(Icons.filter_alt_off_outlined, size: 48),
             const SizedBox(height: 16),
             Text(
-              'No notes match this view yet.',
+              _activeTag.isEmpty ? 'No notes match this view yet.' : 'No notes match this tag yet.',
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
           ],
@@ -438,18 +513,14 @@ class _HomeScreenState extends State<HomeScreen> {
     if (note.type == NoteType.checklist) {
       Navigator.push(
         context,
-        MaterialPageRoute<ChecklistEditorScreen>(
-          builder: (_) => ChecklistEditorScreen(noteId: note.id),
-        ),
+        AnimatedPageRoute<void>(page: ChecklistEditorScreen(noteId: note.id)),
       );
       return;
     }
 
     Navigator.push(
       context,
-      MaterialPageRoute<TextEditorScreen>(
-        builder: (_) => TextEditorScreen(noteId: note.id),
-      ),
+      AnimatedPageRoute<void>(page: TextEditorScreen(noteId: note.id)),
     );
   }
 
@@ -465,6 +536,14 @@ class _HomeScreenState extends State<HomeScreen> {
       default:
         return notes;
     }
+  }
+
+  List<Note> _applyTagFilter(List<Note> notes) {
+    if (_activeTag.isEmpty) {
+      return notes;
+    }
+
+    return notes.where((Note note) => note.allTags.contains(_activeTag)).toList();
   }
 
   List<Note> _sortedByPreference(List<Note> notes, int sortOrder) {
@@ -511,7 +590,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return 'Checklist notes';
       case HomeNoteFilter.all:
       default:
-        return 'Your notes';
+        return _activeTag.isEmpty ? 'Your notes' : 'Filtered notes';
     }
   }
 }
@@ -537,9 +616,7 @@ class _QuickActionCard extends StatelessWidget {
       child: Ink(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
         decoration: BoxDecoration(
-          color: theme.brightness == Brightness.dark
-              ? Colors.white.withOpacity(0.04)
-              : Colors.white,
+          color: theme.brightness == Brightness.dark ? Colors.white.withOpacity(0.04) : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: theme.colorScheme.outline.withOpacity(0.08)),
         ),
@@ -555,6 +632,47 @@ class _QuickActionCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AnimatedSheetShell extends StatelessWidget {
+  final Widget child;
+
+  const _AnimatedSheetShell({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: TweenAnimationBuilder<double>(
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutBack,
+        tween: Tween<double>(begin: 0, end: 1),
+        builder: (BuildContext context, double value, Widget? _) {
+          return Transform.translate(
+            offset: Offset(0, (1 - value) * 50),
+            child: Transform.scale(
+              scale: 0.96 + (0.04 * value),
+              child: Opacity(
+                opacity: value,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  child: Material(
+                    color: theme.bottomSheetTheme.backgroundColor,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(28), bottom: Radius.circular(28)),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: child,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

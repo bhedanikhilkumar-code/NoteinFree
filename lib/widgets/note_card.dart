@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
+import '../models/checklist_item.dart';
 import '../models/note.dart';
+import '../providers/note_provider.dart';
 import '../utils/note_style.dart';
 
 class NoteCard extends StatelessWidget {
@@ -19,8 +22,9 @@ class NoteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final Color background = Color(note.colorValue);
+    final Color background = Color(note.backgroundColorValue);
     final Color foreground = NoteStyle.foregroundFor(background);
+    final List<String> tags = note.allTags;
 
     return Card(
       color: background,
@@ -36,6 +40,16 @@ class NoteCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  if (note.labelValue > 0)
+                    Container(
+                      width: 5,
+                      height: 26,
+                      margin: const EdgeInsets.only(right: 10, top: 2),
+                      decoration: BoxDecoration(
+                        color: NoteStyle.getLabelColor(note.labelValue),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
                   Expanded(
                     child: note.title.trim().isEmpty
                         ? Text(
@@ -44,6 +58,8 @@ class NoteCard extends StatelessWidget {
                               color: foreground.withOpacity(0.7),
                               fontWeight: FontWeight.w600,
                             ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           )
                         : Text(
                             note.title,
@@ -55,30 +71,57 @@ class NoteCard extends StatelessWidget {
                             ),
                           ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 6),
                   Column(
                     children: <Widget>[
-                      if (note.pinned)
-                        Icon(Icons.push_pin_rounded, size: 18, color: foreground.withOpacity(0.78)),
+                      SizedBox(
+                        height: 32,
+                        width: 32,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          splashRadius: 18,
+                          tooltip: note.pinned ? 'Unpin note' : 'Pin note',
+                          onPressed: () {
+                            context.read<NoteProvider>().togglePin(note.id);
+                          },
+                          icon: Icon(
+                            note.pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                            size: 18,
+                            color: note.pinned
+                                ? foreground.withOpacity(0.84)
+                                : foreground.withOpacity(0.52),
+                          ),
+                        ),
+                      ),
                       if (note.locked)
                         Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Icon(Icons.lock_rounded, size: 16, color: foreground.withOpacity(0.7)),
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Icon(
+                            Icons.lock_rounded,
+                            size: 15,
+                            color: foreground.withOpacity(0.72),
+                          ),
                         ),
                     ],
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              Expanded(
-                child: _buildPreview(theme, foreground),
-              ),
+              Expanded(child: _buildPreview(theme, foreground)),
+              if (tags.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: tags.take(3).map((String tag) => _buildTagChip(tag, foreground)).toList(),
+                ),
+              ],
               if (note.reminderAt != null) ...<Widget>[
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: foreground.withOpacity(0.10),
+                    color: foreground.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Row(
@@ -114,9 +157,27 @@ class NoteCard extends StatelessWidget {
     );
   }
 
+  Widget _buildTagChip(String tag, Color foreground) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: foreground.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '#$tag',
+        style: TextStyle(
+          fontSize: 11,
+          color: foreground.withOpacity(0.75),
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
   Widget _buildPreview(ThemeData theme, Color foreground) {
     if (note.type == NoteType.checklist) {
-      final List<Widget> previewItems = note.checklistItems.take(4).map((item) {
+      final List<Widget> previewItems = note.checklistItems.take(3).map<Widget>((ChecklistItem item) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(
@@ -163,7 +224,7 @@ class NoteCard extends StatelessWidget {
     final String content = note.content.trim().isEmpty ? 'Start writing...' : note.content;
     return Text(
       content,
-      maxLines: 8,
+      maxLines: 7,
       overflow: TextOverflow.ellipsis,
       style: theme.textTheme.bodyMedium?.copyWith(
         color: foreground.withOpacity(0.86),

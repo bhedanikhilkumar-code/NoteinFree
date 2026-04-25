@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../utils/custom_route_transitions.dart';
 import 'app_fonts.dart';
 
 class AppTheme {
@@ -110,9 +111,12 @@ class AppTheme {
         thickness: 1,
       ),
       pageTransitionsTheme: const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        builders: <TargetPlatform, PageTransitionsBuilder>{
+          TargetPlatform.android: OpenClawPageTransitionsBuilder(),
+          TargetPlatform.iOS: OpenClawPageTransitionsBuilder(),
+          TargetPlatform.linux: OpenClawPageTransitionsBuilder(),
+          TargetPlatform.macOS: OpenClawPageTransitionsBuilder(),
+          TargetPlatform.windows: OpenClawPageTransitionsBuilder(),
         },
       ),
     );

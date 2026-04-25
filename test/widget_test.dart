@@ -33,7 +33,7 @@ void main() {
     );
 
     await tester.pump(const Duration(milliseconds: 950));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Notein'), findsOneWidget);
     expect(find.text('Create first note'), findsOneWidget);

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../models/checklist_item.dart';
 import '../models/note.dart';
 import '../services/storage_service.dart';
 
@@ -41,12 +42,13 @@ class NoteProvider with ChangeNotifier {
     final String query = _searchQuery.toLowerCase();
     return allNotes.where((Note note) {
       final bool checklistMatch = note.checklistItems.any(
-        (item) => item.text.toLowerCase().contains(query),
+        (ChecklistItem item) => item.text.toLowerCase().contains(query),
       );
 
       return note.title.toLowerCase().contains(query) ||
           note.content.toLowerCase().contains(query) ||
-          checklistMatch;
+          checklistMatch ||
+          note.allTags.any((String tag) => tag.toLowerCase().contains(query));
     }).toList();
   }
 
@@ -74,6 +76,8 @@ class NoteProvider with ChangeNotifier {
   }
 
   Future<void> addNote(Note note) async {
+    note.tags = _normalizedTags(note.tags, note.tag);
+    note.tag = note.tags.isEmpty ? '' : note.tags.first;
     _notes.insert(0, note);
     await _saveNotes();
   }
@@ -81,6 +85,8 @@ class NoteProvider with ChangeNotifier {
   Future<void> updateNote(Note note) async {
     final int index = _notes.indexWhere((Note item) => item.id == note.id);
     if (index != -1) {
+      note.tags = _normalizedTags(note.tags, note.tag);
+      note.tag = note.tags.isEmpty ? '' : note.tags.first;
       _notes[index] = note;
       _notes[index].updatedAt = DateTime.now();
       await _saveNotes();
@@ -138,6 +144,74 @@ class NoteProvider with ChangeNotifier {
     await _saveNotes();
   }
 
+  List<Note> getNotesByLabel(int labelValue) {
+    return allNotes.where((Note note) => note.labelValue == labelValue).toList();
+  }
+
+  Future<void> setLabelColor(String noteId, int labelValue) async {
+    final Note? note = findById(noteId);
+    if (note == null) {
+      return;
+    }
+
+    note.labelValue = labelValue;
+    note.updatedAt = DateTime.now();
+    await _saveNotes();
+  }
+
+  List<Note> getNotesByTag(String tag) {
+    final String query = tag.trim().toLowerCase();
+    if (query.isEmpty) {
+      return allNotes;
+    }
+
+    return allNotes.where((Note note) {
+      return note.allTags.any((String value) => value.toLowerCase() == query);
+    }).toList();
+  }
+
+  Future<void> addTag(String noteId, String tag) async {
+    final Note? note = findById(noteId);
+    final String cleanTag = tag.trim();
+    if (note == null || cleanTag.isEmpty) {
+      return;
+    }
+
+    final bool exists = note.allTags.any(
+      (String value) => value.toLowerCase() == cleanTag.toLowerCase(),
+    );
+    if (!exists) {
+      note.tags = <String>[...note.allTags, cleanTag];
+      note.tag = note.tags.first;
+      note.updatedAt = DateTime.now();
+      await _saveNotes();
+    }
+  }
+
+  Future<void> removeTag(String noteId, String tag) async {
+    final Note? note = findById(noteId);
+    if (note == null) {
+      return;
+    }
+
+    note.tags = note.allTags
+        .where((String value) => value.toLowerCase() != tag.trim().toLowerCase())
+        .toList();
+    note.tag = note.tags.isEmpty ? '' : note.tags.first;
+    note.updatedAt = DateTime.now();
+    await _saveNotes();
+  }
+
+  List<String> getAllTags() {
+    final Set<String> uniqueTags = <String>{};
+    for (final Note note in allNotes) {
+      uniqueTags.addAll(note.allTags);
+    }
+    final List<String> tags = uniqueTags.toList();
+    tags.sort((String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return tags;
+  }
+
   String generateId() => const Uuid().v4();
 
   List<Note> _sorted(List<Note> notes) {
@@ -148,5 +222,25 @@ class NoteProvider with ChangeNotifier {
       return b.updatedAt.compareTo(a.updatedAt);
     });
     return notes;
+  }
+
+  List<String> _normalizedTags(List<String> tags, String legacyTag) {
+    final Set<String> unique = <String>{};
+
+    void addTag(String value) {
+      final String cleanValue = value.trim();
+      if (cleanValue.isNotEmpty) {
+        unique.add(cleanValue);
+      }
+    }
+
+    for (final String value in tags) {
+      addTag(value);
+    }
+    addTag(legacyTag);
+
+    final List<String> values = unique.toList();
+    values.sort((String a, String b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return values;
   }
 }
