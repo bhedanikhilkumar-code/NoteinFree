@@ -12,6 +12,8 @@ import 'checklist_editor_screen.dart';
 import 'note_collection_screen.dart';
 import 'search_screen.dart';
 import 'settings_screen.dart';
+import 'statistics_screen.dart';
+import 'templates_screen.dart';
 import 'text_editor_screen.dart';
 
 enum HomeNoteFilter { all, pinned, reminders, checklists }
@@ -97,6 +99,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 onTap: () {
                   Navigator.pop(context);
                   _pushPage(const ChecklistEditorScreen());
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.auto_awesome)),
+                title: const Text('From template'),
+                subtitle: const Text('Use a pre-made template'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final Note? template = await showModalBottomSheet<Note>(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (BuildContext ctx) {
+                      return _AnimatedSheetShell(
+                        child: const TemplatesScreen(),
+                      );
+                    },
+                  );
+                  if (template != null && mounted) {
+                    if (template.type == NoteType.checklist) {
+                      _pushPage(const ChecklistEditorScreen());
+                    } else {
+                      _pushPage(const TextEditorScreen());
+                    }
+                  }
                 },
               ),
             ],
@@ -362,6 +388,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             icon: Icons.settings_outlined,
             label: 'Settings',
             onTap: () => _pushPage(const SettingsScreen()),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _QuickActionCard(
+            icon: Icons.bar_chart_rounded,
+            label: 'Stats',
+            onTap: () {
+              final NoteProvider provider = Provider.of<NoteProvider>(context, listen: false);
+              final stats = NoteStatistics.fromNotes(provider.allNotes);
+              Navigator.push(
+                context,
+                AnimatedPageRoute<void>(
+                  page: StatisticsScreen(stats: stats),
+                ),
+              );
+            },
           ),
         ),
       ],

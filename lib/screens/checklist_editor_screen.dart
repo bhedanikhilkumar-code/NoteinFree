@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../models/checklist_item.dart';
 import '../models/note.dart';
 import '../providers/note_provider.dart';
+import '../services/export_service.dart';
+import '../services/voice_service.dart';
 import '../utils/note_style.dart';
 import '../widgets/note_metadata_toolbar.dart';
 
@@ -21,10 +23,12 @@ class _ChecklistEditorScreenState extends State<ChecklistEditorScreen> {
   late final TextEditingController _titleController;
   late final TextEditingController _newItemController;
   late final TextEditingController _tagController;
+  final VoiceService _voiceService = VoiceService();
   Note? _note;
   int _backgroundColorValue = NoteStyle.defaultBackgroundColor;
   int _labelValue = 0;
   bool _pinned = false;
+  bool _isListening = false;
   DateTime? _reminderAt;
   List<ChecklistItem> _items = <ChecklistItem>[];
   List<String> _tags = <String>[];
@@ -66,6 +70,31 @@ class _ChecklistEditorScreenState extends State<ChecklistEditorScreen> {
     _newItemController.dispose();
     _tagController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initVoice() async {
+    await _voiceService.init();
+  }
+
+  void _toggleVoiceInput() {
+    if (_isListening) {
+      _voiceService.stopListening();
+      setState(() {
+        _isListening = false;
+      });
+    } else {
+      _voiceService.startListening(
+        onResult: (String text) {
+          setState(() {
+            _items.add(ChecklistItem(text: text));
+            _isListening = false;
+          });
+        },
+      );
+      setState(() {
+        _isListening = true;
+      });
+    }
   }
 
   Future<void> _persistNote({bool popAfterSave = false}) async {
@@ -272,6 +301,64 @@ class _ChecklistEditorScreenState extends State<ChecklistEditorScreen> {
     });
   }
 
+  Future<void> _exportChecklist() async {
+    if (_note == null) {
+      await _persistNote();
+      return;
+    }
+
+    final String? action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf),
+                title: const Text('Export as PDF'),
+                onTap: () => Navigator.pop(context, 'pdf'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.text_snippet),
+                title: const Text('Export as TXT'),
+                onTap: () => Navigator.pop(context, 'txt'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.share),
+                title: const Text('Share checklist'),
+                onTap: () => Navigator.pop(context, 'share'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (action == null || _note == null) return;
+
+
+    try {
+      if (action == 'pdf') {
+        final String path = await ExportService.exportNoteAsPdf(_note!);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved: $path')),
+        );
+      } else if (action == 'txt') {
+        final String path = await ExportService.exportNoteAsTxt(_note!);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved: $path')),
+        );
+      } else if (action == 'share') {
+        await ExportService.shareNote(_note!);
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Export failed: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -342,6 +429,20 @@ class _ChecklistEditorScreenState extends State<ChecklistEditorScreen> {
                       icon: const Icon(Icons.alarm_off_rounded),
                       color: foreground,
                     ),
+                  IconButton(
+                    tooltip: 'Voice input',
+                    onPressed: _toggleVoiceInput,
+                    icon: Icon(
+                      _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
+                      color: _isListening ? Colors.red : foreground,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Export / Share',
+                    onPressed: _exportChecklist,
+                    icon: const Icon(Icons.ios_share),
+                    color: foreground,
+                  ),
                   const Spacer(),
                   Text(
                     _note == null
