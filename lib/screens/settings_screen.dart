@@ -4,10 +4,17 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/notification_service.dart';
 import '../theme/app_fonts.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
+  Future<bool> _checkNotificationPermission() async {
+    final NotificationService service = NotificationService();
+    await service.init();
+    return service.hasPermission();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,6 +69,32 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               _SettingsSection(
+                title: 'Notifications',
+                children: <Widget>[
+                  ListTile(
+                    title: const Text('Reminder notifications'),
+                    subtitle: const Text('Get notified when a note reminder is due'),
+                    trailing: FutureBuilder<bool>(
+                      future: _checkNotificationPermission(),
+                      builder: (BuildContext context, AsyncSnapshot<bool> snapshot) {
+                        final bool granted = snapshot.data ?? false;
+                        return Switch(
+                          value: granted,
+                          onChanged: (bool value) async {
+                            if (value) {
+                              final NotificationService service = NotificationService();
+                              await service.init();
+                              await service.requestPermissions();
+                            }
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _SettingsSection(
                 title: 'Privacy & security',
                 children: <Widget>[
                   ListTile(
@@ -84,6 +117,21 @@ class SettingsScreen extends StatelessWidget {
                         color: theme.colorScheme.onSurface.withOpacity(0.65),
                       ),
                     ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _SettingsSection(
+                title: 'About',
+                children: <Widget>[
+                  const ListTile(
+                    title: Text('Version'),
+                    subtitle: Text('1.0.0'),
+                  ),
+                  ListTile(
+                    title: const Text('Notein Free'),
+                    subtitle: const Text('Fast, private, offline notes'),
+                    trailing: Icon(Icons.info_outline_rounded, color: theme.colorScheme.primary),
                   ),
                 ],
               ),

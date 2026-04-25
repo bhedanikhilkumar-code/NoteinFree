@@ -3,15 +3,22 @@ import 'package:uuid/uuid.dart';
 
 import '../models/checklist_item.dart';
 import '../models/note.dart';
+import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 
 class NoteProvider with ChangeNotifier {
   final StorageService _storageService;
+  final NotificationService _notificationService = NotificationService();
   List<Note> _notes = <Note>[];
   String _searchQuery = '';
 
   NoteProvider(this._storageService) {
     _loadNotes();
+    _initNotifications();
+  }
+
+  Future<void> _initNotifications() async {
+    await _notificationService.init();
   }
 
   List<Note> get allNotes => _sorted(
@@ -80,6 +87,7 @@ class NoteProvider with ChangeNotifier {
     note.tag = note.tags.isEmpty ? '' : note.tags.first;
     _notes.insert(0, note);
     await _saveNotes();
+    await _scheduleNotification(note);
   }
 
   Future<void> updateNote(Note note) async {
@@ -90,6 +98,15 @@ class NoteProvider with ChangeNotifier {
       _notes[index] = note;
       _notes[index].updatedAt = DateTime.now();
       await _saveNotes();
+      await _scheduleNotification(note);
+    }
+  }
+
+  Future<void> _scheduleNotification(Note note) async {
+    if (note.reminderAt != null && note.reminderAt!.isAfter(DateTime.now())) {
+      await _notificationService.scheduleNoteReminder(note);
+    } else {
+      await _notificationService.cancelNoteReminder(note.id);
     }
   }
 
@@ -114,6 +131,7 @@ class NoteProvider with ChangeNotifier {
     note.archived = false;
     note.updatedAt = DateTime.now();
     await _saveNotes();
+    await _notificationService.cancelNoteReminder(id);
   }
 
   Future<void> restoreNote(String id) async {
@@ -125,11 +143,13 @@ class NoteProvider with ChangeNotifier {
     note.deleted = false;
     note.updatedAt = DateTime.now();
     await _saveNotes();
+    await _scheduleNotification(note);
   }
 
   Future<void> deletePermanently(String id) async {
     _notes.removeWhere((Note note) => note.id == id);
     await _saveNotes();
+    await _notificationService.cancelNoteReminder(id);
   }
 
   Future<void> toggleArchive(String id) async {
