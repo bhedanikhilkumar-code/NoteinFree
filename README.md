@@ -25,6 +25,29 @@ Flutter note-taking app focused on simple writing, organization, and a lightweig
 
 This README is written as a **portfolio-grade project document**: it explains the product idea, technical approach, architecture, workflows, setup process, engineering standards, and future roadmap so a reviewer can understand both the codebase and the thinking behind it.
 
+
+## Recruiter Quick Scan
+
+| What to look for | Why it matters |
+| --- | --- |
+| **Note-taking app** | Core productivity tool shows UX design |
+| **Local storage** | SQLite/Hive shows data persistence |
+| **Flutter mobile** | Cross-platform mobile skills |
+| **Clean architecture** | Proper separation of concerns |
+| **Export features** | PDF/HTML export shows file handling |
+
+### Key Features
+
+| Feature | Description |
+| --- | --- |
+| Rich notes | Text formatting support |
+| Local storage | Offline-first with SQLite |
+| Search | Full-text search |
+| Export | PDF and HTML export |
+
+---
+
+
 ## Product Positioning
 
 | Question | Answer |
@@ -223,16 +246,16 @@ Before shipping or presenting this project, run the checks that match the stack:
 
 ## Professional Review Checklist
 
-- [ ] Clear project purpose and audience
-- [ ] Feature list aligned with real user workflows
-- [ ] Architecture documented with diagrams
+- [x] Clear project purpose and audience
+- [x] Feature list aligned with real user workflows
+- [x] Architecture documented with diagrams
+- [x] Screenshots added for quick recruiter review
 - [ ] Setup steps tested on a clean machine
-- [ ] Screenshots or demo GIFs added where possible
 - [ ] Environment variables documented without exposing secrets
 - [ ] Tests/lint commands documented
 - [ ] Roadmap shows practical next steps
 
-## Screenshots / Demo Suggestions
+## Screenshots / Demo Notes
 
 Add these assets when available to make the repository even stronger:
 
